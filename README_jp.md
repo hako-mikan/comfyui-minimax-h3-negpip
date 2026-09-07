@@ -15,8 +15,10 @@ MiniMax H3 で NegPiP を使えるようにするカスタムノード。
    conditioning ノードと KSampler に繋ぐ。
 3. プロンプトに負の重みを書く:
 
+動作テスト。緑のりんごが出たら成功です。
 ```text
-a woman walking on a beach, (blurry photo:-1.0), (anime illustration:-1.2)
+An apple on the table, daytime.
+(red fruit:-5)
 ```
 
 ### 強度の目安

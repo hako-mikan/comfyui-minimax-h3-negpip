@@ -14,8 +14,10 @@ flipped**, so the concept is *subtracted* from the result instead of added.
    node (`MiniMax H3 Image to Video` / `MiniMax H3 Reference to Video`) and the sampler.
 3. Write negative weights in the prompt:
 
+Functionality test. If a green apple appears, it is a success.
 ```text
-a woman walking on a beach, (blurry photo:-1.0), (anime illustration:-1.2)
+An apple on the table, daytime.
+(red fruit:-5)
 ```
 
 ### Strength
