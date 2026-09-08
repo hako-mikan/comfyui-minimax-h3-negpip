@@ -102,13 +102,16 @@ class TimeRange(NamedTuple):
 # CLIP side
 # --------------------------------------------------------------------------------------
 
-# (word:-1.2), and any group carrying a time range: (word:-1.2@2.5-4.0),
-# (word:2@v2.5-) video only, (word:-1@a-2.0) audio only, open ended on either side.
-# Both are lifted out of the prompt and appended as their own rows; a plain
-# (word:1.3) stays where it is and only scales its value vectors.
+# (word:-1.2), and any group carrying an @ selector: (word:-1.2@2.5-4.0),
+# (word:2@v2.5-) video only from 2.5s, (word:-1@a-2.0) audio only up to 2.0s,
+# (word:-1@a) audio only for the whole clip. Both are lifted out of the prompt and
+# appended as their own rows; a plain (word:1.3) stays where it is and only scales
+# its value vectors. The seconds are optional: @a alone is a stream selector.
 NEGPIP_GROUP_RE = re.compile(
     r"(?<!\\)\(([^()]*?):\s*(-?\d+(?:\.\d+)?)\s*"
-    r"(?:@\s*([vaVA]?)\s*(\d*(?:\.\d+)?)\s*-\s*(\d*(?:\.\d+)?)\s*)?\)")
+    r"(?:@\s*([vaVA]?)\s*(?:(\d*(?:\.\d+)?)\s*-\s*(\d*(?:\.\d+)?))?\s*)?\)")
+# an @ group that did not parse would silently end up in the prompt as literal text
+MALFORMED_GROUP_RE = re.compile(r"(?<!\\)\([^()]*:[^()]*@[^()]*\)")
 
 
 def _tidy(text: str) -> str:
@@ -143,8 +146,8 @@ def _split_lifted_groups(text: str):
         phrase = match.group(1).strip()
         weight = float(match.group(2))
         time_range = None
-        if match.group(4) is not None or match.group(5) is not None:
-            stream = {"v": "video", "a": "audio", "": "both"}[(match.group(3) or "").lower()]
+        if match.group(3) is not None:  # an @ selector, with or without seconds
+            stream = {"v": "video", "a": "audio", "": "both"}[match.group(3).lower()]
             start = float(match.group(4)) if match.group(4) else 0.0
             end = float(match.group(5)) if match.group(5) else OPEN_END
             time_range = TimeRange(stream, start, max(start, end))
@@ -154,7 +157,12 @@ def _split_lifted_groups(text: str):
             lifted.append((phrase, weight, time_range))
         return ""
 
-    return _tidy(NEGPIP_GROUP_RE.sub(replace, text)), lifted
+    cleaned = _tidy(NEGPIP_GROUP_RE.sub(replace, text))
+    for leftover in MALFORMED_GROUP_RE.findall(cleaned):
+        logging.warning("MiniMax H3 NegPiP: %r is not valid syntax, it stays in the prompt as text. "
+                        "Expected (words:-1.5), (words:-1.5@a), (words:-1.5@2.5-4.0) or (words:-1.5@v2.5-).",
+                        leftover)
+    return cleaned, lifted
 
 
 def _isolated_tokens(inner_tokenizer, phrase: str):
